@@ -1,0 +1,12 @@
+apiVersion: build.toolkit.cloudmason.dev.cloudmason.dev/v1
+kind: BuildDefinition
+metadata:
+  labels:
+    app.kubernetes.io/name: builddefinition
+    app.kubernetes.io/instance: builddefinition-sample
+    app.kubernetes.io/part-of: container-build-controller
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: container-build-controller
+  name: builddefinition-sample
+spec:
+  # TODO(user): Add fields here

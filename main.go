@@ -30,6 +30,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	buildtoolkitcloudmasondevv1 "github.com/saintskeeper/container-build-controller/apis/build.toolkit.cloudmason.dev/v1"
+	buildtoolkitcloudmasondevcontrollers "github.com/saintskeeper/container-build-controller/controllers/build.toolkit.cloudmason.dev"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -41,6 +44,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
+	utilruntime.Must(buildtoolkitcloudmasondevv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -85,6 +89,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&buildtoolkitcloudmasondevcontrollers.BuildDefinitionReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "BuildDefinition")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
