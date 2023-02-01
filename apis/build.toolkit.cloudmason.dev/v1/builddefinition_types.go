@@ -17,14 +17,29 @@ limitations under the License.
 package v1
 
 import (
+	"github.com/fluxcd/pkg/apis/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+const (
+	BuildDefinition = "BuildDefinition"
+	// GoGitImplementation represents the go-git Git implementation kind.
+	// LibGit2Implementation represents the git2go Git implementation kind.
+)
 
 // BuildDefinitionSpec defines the desired state of BuildDefinition
 type BuildDefinitionSpec struct {
+	// name of the gitRepository resource to reference
+	GitRepository string `json:"gitRepository,omitempty"`
+	// path to the dockerfile to build
+
+	ContextPath string `json:"contextPath,omitempty"`
+
+	Registry string `json:"registry,omitempty"`
+	// to get local secret needs to be updates.
+	SecretRef *meta.LocalObjectReference `json:"secretRef,omitempty"`
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
