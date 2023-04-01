@@ -1,0 +1,33 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - build.toolkit.cloudmason.dev
+  resources:
+  - builddefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - build.toolkit.cloudmason.dev
+  resources:
+  - builddefinitions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - build.toolkit.cloudmason.dev
+  resources:
+  - builddefinitions/status
+  verbs:
+  - get
+  - patch
+  - update

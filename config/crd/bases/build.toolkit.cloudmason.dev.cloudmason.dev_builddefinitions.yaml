@@ -1,0 +1,64 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.10.0
+  creationTimestamp: null
+  name: builddefinitions.build.toolkit.cloudmason.dev.cloudmason.dev
+spec:
+  group: build.toolkit.cloudmason.dev.cloudmason.dev
+  names:
+    kind: BuildDefinition
+    listKind: BuildDefinitionList
+    plural: builddefinitions
+    singular: builddefinition
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: BuildDefinition is the Schema for the builddefinitions API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: BuildDefinitionSpec defines the desired state of BuildDefinition
+            properties:
+              contextPath:
+                description: path to the dockerfile to build
+                type: string
+              gitRepository:
+                description: name of the gitRepository resource to reference
+                type: string
+              registry:
+                description: name of registry to push to (dockerhub, quay, etc)
+                type: string
+              secretRef:
+                description: to get local secret needs to be updates.
+                properties:
+                  name:
+                    description: Name of the referent.
+                    type: string
+                required:
+                - name
+                type: object
+            type: object
+          status:
+            description: BuildDefinitionStatus defines the observed state of BuildDefinition
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
