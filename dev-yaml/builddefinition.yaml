@@ -2,9 +2,15 @@ apiVersion: build.toolkit.cloudmason.dev.cloudmason.dev/v1
 kind: BuildDefinition
 metadata:
   name: example-builddefinition
+  namespace: default
 spec:
-  gitRepository: https://github.com/example/example-repo.git
-  contextPath: /path/to/dockerfile
+  gitRepository: https://github.com/saintskeeper/DevSecOps-Toolbox.git
+  contextPath: docker/
   registry: docker.io
-  secretRef:
-    name: docker-registry-credentials
+  # need to update this name to be registry secret name
+  registrySecret: docker-registry-credentials
+  builderImage: ""
+  args:
+    - "--destination=docker.io/my-repo/my-image:latest"
+    - "--cache=true"
+    - "--build-arg=ARG1=value1"

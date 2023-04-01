@@ -35,6 +35,10 @@ type BuildDefinitionSpec struct {
 	// to get local secret needs to be updates.
 	SecretRef *meta.LocalObjectReference `json:"secretRef,omitempty"`
 	// this will need to have data about how to push to the registry
+	RegistrySecret string `json:"registrySecret,omitempty"`
+	// name of the builder to use
+	BuilderImage string   `json:"builderImage,omitempty"`
+	Args         []string `json:"args,omitempty"`
 }
 
 // BuildDefinitionStatus defines the observed state of BuildDefinition

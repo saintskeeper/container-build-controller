@@ -50,7 +50,17 @@ type BuildDefinitionReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDefinition *buildtoolkitcloudmasondevv1.BuildDefinition) (*batchv1.Job, error) {
+func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, log logr.Logger, buildDefinition *buildtoolkitcloudmasondevv1.BuildDefinition) (*batchv1.Job, error) {
+	// Default builder image
+	defaultBuilderImage := "gcr.io/kaniko-project/executor:latest"
+	args := append(buildDefinition.Spec.Args, "executor")
+
+	// check to see if hte builder is defined
+	builderImage := buildDefinition.Spec.BuilderImage
+	if builderImage == "" {
+		builderImage = defaultBuilderImage
+	}
+
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      buildDefinition.Name + "-build-job",
@@ -63,7 +73,8 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDe
 					Containers: []corev1.Container{
 						{
 							Name:  "build-and-push",
-							Image: "your-build-and-push-image",
+							Image: builderImage,
+							Args:  args,
 							Env: []corev1.EnvVar{
 								{Name: "GIT_REPOSITORY", Value: buildDefinition.Spec.GitRepository},
 								{Name: "CONTEXT_PATH", Value: buildDefinition.Spec.ContextPath},
@@ -74,12 +85,13 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDe
 							},
 						},
 					},
+
 					Volumes: []corev1.Volume{
 						{
 							Name: "docker-config",
 							VolumeSource: corev1.VolumeSource{
 								Secret: &corev1.SecretVolumeSource{
-									SecretName: buildDefinition.Spec.SecretRef.Name,
+									SecretName: buildDefinition.Spec.RegistrySecret,
 								},
 							},
 						},
@@ -90,7 +102,7 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDe
 	}
 
 	if err := r.Create(ctx, jobSpec); err != nil {
-		r.Log.Error(err, "unable to create Kubernetes Job")
+		log.Error(err, "unable to create Kubernetes Job")
 		return nil, client.IgnoreNotFound(err)
 	}
 
@@ -99,10 +111,12 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDe
 func (r *BuildDefinitionReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var buildDefinition buildtoolkitcloudmasondevv1.BuildDefinition
 	if err := r.Get(context.TODO(), req.NamespacedName, &buildDefinition); err != nil {
-		r.Log.Error(err, "unable to fetch BuildDefinition")
+		log := r.Log.WithValues("BuildDefinition", req.NamespacedName)
+		log.Error(err, "unable to build JobSpec")
+
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	jobSpec, err := r.CreateContainer(context.TODO(), &buildDefinition)
+	jobSpec, err := r.CreateContainer(context.TODO(), r.Log, &buildDefinition)
 	if err != nil {
 		r.Log.Error(err, "unable to build JobSpec")
 		return ctrl.Result{}, client.IgnoreNotFound(err)

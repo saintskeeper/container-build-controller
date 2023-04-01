@@ -35,6 +35,13 @@ spec:
           spec:
             description: BuildDefinitionSpec defines the desired state of BuildDefinition
             properties:
+              args:
+                items:
+                  type: string
+                type: array
+              builderImage:
+                description: name of the builder to use
+                type: string
               contextPath:
                 description: path to the dockerfile to build
                 type: string
@@ -43,6 +50,10 @@ spec:
                 type: string
               registry:
                 description: name of registry to push to (dockerhub, quay, etc)
+                type: string
+              registrySecret:
+                description: this will need to have data about how to push to the
+                  registry
                 type: string
               secretRef:
                 description: to get local secret needs to be updates.
