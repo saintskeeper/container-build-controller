@@ -23,18 +23,23 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/go-logr/logr"
 	buildtoolkitcloudmasondevv1 "github.com/saintskeeper/container-build-controller/apis/build.toolkit.cloudmason.dev/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // BuildDefinitionReconciler reconciles a BuildDefinition object
 type BuildDefinitionReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Log    logr.Logger
 }
 
-//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev.cloudmason.dev,resources=builddefinitions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev.cloudmason.dev,resources=builddefinitions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev.cloudmason.dev,resources=builddefinitions/finalizers,verbs=update
+//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -45,23 +50,67 @@ type BuildDefinitionReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDefinition *buildtoolkitcloudmasondevv1.BuildDefinition) (*batchv1.Job, error) {
+	jobSpec := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      buildDefinition.Name + "-build-job",
+			Namespace: buildDefinition.Namespace,
+		},
+		Spec: batchv1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyOnFailure,
+					Containers: []corev1.Container{
+						{
+							Name:  "build-and-push",
+							Image: "your-build-and-push-image",
+							Env: []corev1.EnvVar{
+								{Name: "GIT_REPOSITORY", Value: buildDefinition.Spec.GitRepository},
+								{Name: "CONTEXT_PATH", Value: buildDefinition.Spec.ContextPath},
+								{Name: "REGISTRY", Value: buildDefinition.Spec.Registry},
+							},
+							VolumeMounts: []corev1.VolumeMount{
+								{Name: "docker-config", MountPath: "/kaniko/.docker/"},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						{
+							Name: "docker-config",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: buildDefinition.Spec.SecretRef.Name,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
-	// TODO(user): your logic here
+	if err := r.Create(ctx, jobSpec); err != nil {
+		r.Log.Error(err, "unable to create Kubernetes Job")
+		return nil, client.IgnoreNotFound(err)
+	}
 
-	ctx := context.Background()
-	log := r.Log.WithValues("builddefinition", req.NamespacedName)
-
+	return jobSpec, nil
+}
+func (r *BuildDefinitionReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
 	var buildDefinition buildtoolkitcloudmasondevv1.BuildDefinition
-	if err := r.Get(ctx, req.NamespacedName, &buildDefinition); err != nil {
-		log.Error(err, "unable to fetch BuildDefinition")
+	if err := r.Get(context.TODO(), req.NamespacedName, &buildDefinition); err != nil {
+		r.Log.Error(err, "unable to fetch BuildDefinition")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	jobSpec, err := r.CreateContainer(context.TODO(), &buildDefinition)
+	if err != nil {
+		r.Log.Error(err, "unable to build JobSpec")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	jobSpec, err := r.CreateContainer(buildDefinition)
-	if err != nil {
-		log.Error(err, "unable to build JobSpec")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	if err := r.Create(context.TODO(), jobSpec); err != nil {
+		r.Log.Error(err, "unable to create Kubernetes Job")
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil

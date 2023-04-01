@@ -13,7 +13,7 @@ resources:
     namespaced: true
   controller: true
   domain: cloudmason.dev
-  group: build.toolkit.cloudmason.dev
+  group: build.toolkit
   kind: BuildDefinition
   path: github.com/saintskeeper/container-build-controller/apis/build.toolkit.cloudmason.dev/v1
   version: v1

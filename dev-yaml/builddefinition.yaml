@@ -1,0 +1,10 @@
+apiVersion: build.toolkit.cloudmason.dev.cloudmason.dev/v1
+kind: BuildDefinition
+metadata:
+  name: example-builddefinition
+spec:
+  gitRepository: https://github.com/example/example-repo.git
+  contextPath: /path/to/dockerfile
+  registry: docker.io
+  secretRef:
+    name: docker-registry-credentials
