@@ -23,28 +23,18 @@ import (
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-const (
-	BuildDefinition = "BuildDefinition"
-	// GoGitImplementation represents the go-git Git implementation kind.
-	// LibGit2Implementation represents the git2go Git implementation kind.
-)
 
 // BuildDefinitionSpec defines the desired state of BuildDefinition
 type BuildDefinitionSpec struct {
 	// name of the gitRepository resource to reference
 	GitRepository string `json:"gitRepository,omitempty"`
 	// path to the dockerfile to build
-
 	ContextPath string `json:"contextPath,omitempty"`
-
+	// name of registry to push to (dockerhub, quay, etc)
 	Registry string `json:"registry,omitempty"`
 	// to get local secret needs to be updates.
 	SecretRef *meta.LocalObjectReference `json:"secretRef,omitempty"`
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of BuildDefinition. Edit builddefinition_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// this will need to have data about how to push to the registry
 }
 
 // BuildDefinitionStatus defines the observed state of BuildDefinition

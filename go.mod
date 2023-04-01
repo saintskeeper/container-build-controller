@@ -9,7 +9,10 @@ require (
 	k8s.io/apimachinery v0.26.1
 	k8s.io/client-go v0.25.0
 	sigs.k8s.io/controller-runtime v0.13.0
-)
+	k8s.io/api/batch/v1
+	k8s.io/api/core/v1
+	k8s.io/apimachinery/pkg/apis/meta/v1
+	)
 
 require (
 	cloud.google.com/go v0.97.0 // indirect
