@@ -2,9 +2,15 @@ apiVersion: build.toolkit.cloudmason.dev.cloudmason.dev/v1
 kind: BuildDefinition
 metadata:
   name: example-builddefinition
+  namespace: default
 spec:
-  gitRepository: https://github.com/example/example-repo.git
-  contextPath: /path/to/dockerfile
+  gitRepository: https://github.com/saintskeeper/DevSecOps-Toolbox.git
+  contextPath: docker
   registry: docker.io
-  secretRef:
-    name: docker-registry-credentials
+  registrySecret: docker-registry-credentials
+  builderImage: ""
+  args:
+    - "--no-push=true"
+
+# TODO ad a build file as dockerfile Dockerfile or something else
+# add support for the Source Controller to get the source code from the git repositoryx
