@@ -18,6 +18,8 @@ package buildtoolkitcloudmasondev
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -37,6 +39,14 @@ type BuildDefinitionReconciler struct {
 	Log    logr.Logger
 }
 
+func NewBuildDefinitionReconciler(client client.Client, scheme *runtime.Scheme) *BuildDefinitionReconciler {
+	return &BuildDefinitionReconciler{
+		Client: client,
+		Scheme: scheme,
+		Log:    ctrl.Log.WithName("controllers").WithName("BuildDefinition"),
+	}
+}
+
 //+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions/finalizers,verbs=update
@@ -50,11 +60,39 @@ type BuildDefinitionReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.13.0/pkg/reconcile
-func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, log logr.Logger, buildDefinition *buildtoolkitcloudmasondevv1.BuildDefinition) (*batchv1.Job, error) {
+func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDefinition *buildtoolkitcloudmasondevv1.BuildDefinition) (*batchv1.Job, error) {
 	// Default builder image
-	defaultBuilderImage := "gcr.io/kaniko-project/executor:latest"
-	args := append(buildDefinition.Spec.Args, "executor")
 
+	if buildDefinition.ObjectMeta.Namespace == "" || buildDefinition.ObjectMeta.Name == "" {
+		return nil, fmt.Errorf("buildDefinition metadata is invalid")
+	}
+
+	if buildDefinition.Spec.GitRepository == "" || buildDefinition.Spec.ContextPath == "" || buildDefinition.Spec.Registry == "" {
+		return nil, fmt.Errorf("invalid values for GitRepository, ContextPath, or Registry")
+	}
+
+	// Get the dockerfilePath from the BuildDefinition object or use the default value
+
+	dockerfilePath := "/dockerfile"
+	/*
+		if _, err := os.Stat(buildDefinition.Spec.ContextPath + "/dockerfile"); err == nil {
+			dockerfilePath = "/dockerfile"
+		}
+
+		if _, err := os.Stat(buildDefinition.Spec.ContextPath + dockerfilePath); err != nil {
+			if _, err := os.Stat(buildDefinition.Spec.ContextPath + "dockerfile"); err == nil {
+				dockerfilePath = "dockerfile"
+			}
+		}
+	*/
+
+	defaultBuilderImage := "gcr.io/kaniko-project/executor:latest"
+	// need a log.r to log the dockerfile path
+	r.Log.Info("Dockerfile path", "dockerfile", dockerfilePath)
+	args := append(buildDefinition.Spec.Args,
+		"--context=git://"+strings.TrimPrefix(buildDefinition.Spec.GitRepository, "https://"),
+		"--dockerfile="+string(buildDefinition.Spec.ContextPath+dockerfilePath),
+	)
 	// check to see if hte builder is defined
 	builderImage := buildDefinition.Spec.BuilderImage
 	if builderImage == "" {
@@ -79,6 +117,7 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, log log
 								{Name: "GIT_REPOSITORY", Value: buildDefinition.Spec.GitRepository},
 								{Name: "CONTEXT_PATH", Value: buildDefinition.Spec.ContextPath},
 								{Name: "REGISTRY", Value: buildDefinition.Spec.Registry},
+								{Name: "DOCKERFILE_PATH", Value: dockerfilePath},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{Name: "docker-config", MountPath: "/kaniko/.docker/"},
@@ -101,31 +140,42 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, log log
 		},
 	}
 
-	if err := r.Create(ctx, jobSpec); err != nil {
-		log.Error(err, "unable to create Kubernetes Job")
+	/*	if err := r.Create(ctx, jobSpec); err != nil {
+		r.Log.Error(err, "unable to create Kubernetes Job")
 		return nil, client.IgnoreNotFound(err)
-	}
+	}*/
 
 	return jobSpec, nil
 }
-func (r *BuildDefinitionReconciler) Reconcile(_ context.Context, req ctrl.Request) (ctrl.Result, error) {
-	var buildDefinition buildtoolkitcloudmasondevv1.BuildDefinition
-	if err := r.Get(context.TODO(), req.NamespacedName, &buildDefinition); err != nil {
-		log := r.Log.WithValues("BuildDefinition", req.NamespacedName)
-		log.Error(err, "unable to build JobSpec")
 
+func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.Log.Info("Debug: Checking the state of BuildDefinitionReconciler struct", "r", r)
+	var buildDefinition buildtoolkitcloudmasondevv1.BuildDefinition
+	if err := r.Get(ctx, req.NamespacedName, &buildDefinition); err != nil {
+		r.Log.Error(err, "unable to build JobSpec", "BuildDefinition", req.NamespacedName)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	jobSpec, err := r.CreateContainer(context.TODO(), r.Log, &buildDefinition)
+
+	r.Log.Info("Debug: Successfully fetched BuildDefinition", "buildDefinition", buildDefinition)
+	if buildDefinition.ObjectMeta.Namespace == "" || buildDefinition.ObjectMeta.Name == "" {
+		r.Log.Error(fmt.Errorf("buildDefinition metadata is invalid"), "unable to build JobSpec", "BuildDefinition", req.NamespacedName)
+		return ctrl.Result{}, nil
+	}
+
+	jobSpec, err := r.CreateContainer(context.TODO(), &buildDefinition)
 	if err != nil {
 		r.Log.Error(err, "unable to build JobSpec")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if err := r.Create(context.TODO(), jobSpec); err != nil {
+	r.Log.Info("Debug: Successfully created JobSpec", "jobSpec", jobSpec)
+	if err := r.Create(ctx, jobSpec); err != nil {
+
 		r.Log.Error(err, "unable to create Kubernetes Job")
 		return ctrl.Result{}, nil
 	}
+
+	r.Log.Info("Debug: Successfully created Kubernetes Job")
 
 	return ctrl.Result{}, nil
 }

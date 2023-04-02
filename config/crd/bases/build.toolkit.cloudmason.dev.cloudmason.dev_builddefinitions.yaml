@@ -45,6 +45,8 @@ spec:
               contextPath:
                 description: path to the dockerfile to build
                 type: string
+              dockerFilePath:
+                type: string
               gitRepository:
                 description: name of the gitRepository resource to reference
                 type: string

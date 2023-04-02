@@ -5,12 +5,12 @@ metadata:
   namespace: default
 spec:
   gitRepository: https://github.com/saintskeeper/DevSecOps-Toolbox.git
-  contextPath: docker/
+  contextPath: docker
   registry: docker.io
-  # need to update this name to be registry secret name
   registrySecret: docker-registry-credentials
   builderImage: ""
   args:
-    - "--destination=docker.io/my-repo/my-image:latest"
-    - "--cache=true"
-    - "--build-arg=ARG1=value1"
+    - "--no-push=true"
+
+# TODO ad a build file as dockerfile Dockerfile or something else
+# add support for the Source Controller to get the source code from the git repositoryx

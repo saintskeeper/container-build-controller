@@ -89,13 +89,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&buildtoolkitcloudmasondevcontrollers.BuildDefinitionReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
+	reconciler := buildtoolkitcloudmasondevcontrollers.NewBuildDefinitionReconciler(mgr.GetClient(), mgr.GetScheme())
+	if err = reconciler.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "BuildDefinition")
 		os.Exit(1)
 	}
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
