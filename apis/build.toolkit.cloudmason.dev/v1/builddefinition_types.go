@@ -40,6 +40,7 @@ type BuildDefinitionSpec struct {
 	BuilderImage   string   `json:"builderImage,omitempty"`
 	Args           []string `json:"args,omitempty"`
 	DockerfilePath string   `json:"dockerFilePath,omitempty"`
+	BuildFile      string   `json:"buildFile,omitempty"`
 }
 
 // BuildDefinitionStatus defines the observed state of BuildDefinition

@@ -19,7 +19,9 @@ package buildtoolkitcloudmasondev
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,6 +33,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+// Constants
+const jobOwnerKey = ".metadata.controller"
+const apiGVStr = "build.toolkit.cloudmason.dev/v1"
+
+// Numbers
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyz0123456789")
 
 // BuildDefinitionReconciler reconciles a BuildDefinition object
 type BuildDefinitionReconciler struct {
@@ -45,6 +54,18 @@ func NewBuildDefinitionReconciler(client client.Client, scheme *runtime.Scheme) 
 		Scheme: scheme,
 		Log:    ctrl.Log.WithName("controllers").WithName("BuildDefinition"),
 	}
+}
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func randString(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
 //+kubebuilder:rbac:groups=build.toolkit.cloudmason.dev,resources=builddefinitions,verbs=get;list;watch;create;update;patch;delete
@@ -73,36 +94,39 @@ func (r *BuildDefinitionReconciler) CreateContainer(ctx context.Context, buildDe
 
 	// Get the dockerfilePath from the BuildDefinition object or use the default value
 
-	dockerfilePath := "/dockerfile"
-	/*
-		if _, err := os.Stat(buildDefinition.Spec.ContextPath + "/dockerfile"); err == nil {
-			dockerfilePath = "/dockerfile"
-		}
+	dockerfilePath := buildDefinition.Spec.ContextPath + "/Dockerfile"
 
-		if _, err := os.Stat(buildDefinition.Spec.ContextPath + dockerfilePath); err != nil {
-			if _, err := os.Stat(buildDefinition.Spec.ContextPath + "dockerfile"); err == nil {
-				dockerfilePath = "dockerfile"
-			}
-		}
-	*/
+	// Use the provided build file path if not empty
+	if buildDefinition.Spec.BuildFile != "" {
+		dockerfilePath = buildDefinition.Spec.ContextPath + "/" + buildDefinition.Spec.BuildFile
+	}
 
 	defaultBuilderImage := "gcr.io/kaniko-project/executor:latest"
-	// need a log.r to log the dockerfile path
-	r.Log.Info("Dockerfile path", "dockerfile", dockerfilePath)
 	args := append(buildDefinition.Spec.Args,
 		"--context=git://"+strings.TrimPrefix(buildDefinition.Spec.GitRepository, "https://"),
-		"--dockerfile="+string(buildDefinition.Spec.ContextPath+dockerfilePath),
+		"--dockerfile="+dockerfilePath,
 	)
+
 	// check to see if hte builder is defined
 	builderImage := buildDefinition.Spec.BuilderImage
 	if builderImage == "" {
 		builderImage = defaultBuilderImage
 	}
 
+	// lets create a function to create a random 8 chracter string only using numbers and lowercase letters
+
 	jobSpec := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      buildDefinition.Name + "-build-job",
+			Name:      buildDefinition.Name + "-build-" + randString(8),
 			Namespace: buildDefinition.Namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: buildDefinition.APIVersion,
+					Kind:       buildDefinition.Kind,
+					Name:       buildDefinition.Name,
+					UID:        buildDefinition.UID,
+				},
+			},
 		},
 		Spec: batchv1.JobSpec{
 			Template: corev1.PodTemplateSpec{
@@ -162,7 +186,15 @@ func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
-	jobSpec, err := r.CreateContainer(context.TODO(), &buildDefinition)
+	// Delete any existing Jobs with the same OwnerReference
+	err := r.DeleteAllOf(ctx, &batchv1.Job{}, client.InNamespace(req.Namespace), client.MatchingFields{jobOwnerKey: req.Name})
+	if err != nil {
+		r.Log.Error(err, "failed to delete old Jobs")
+		return ctrl.Result{}, err
+	}
+
+	// Create a new Job
+	jobSpec, err := r.CreateContainer(ctx, &buildDefinition)
 	if err != nil {
 		r.Log.Error(err, "unable to build JobSpec")
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -170,7 +202,6 @@ func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	r.Log.Info("Debug: Successfully created JobSpec", "jobSpec", jobSpec)
 	if err := r.Create(ctx, jobSpec); err != nil {
-
 		r.Log.Error(err, "unable to create Kubernetes Job")
 		return ctrl.Result{}, nil
 	}
@@ -182,7 +213,36 @@ func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BuildDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &batchv1.Job{}, jobOwnerKey, func(rawObj client.Object) []string {
+    job := rawObj.(*batchv1.Job)
+    owner := metav1.GetControllerOf(job)
+    if owner == nil || owner.APIVersion != apiGVStr || owner.Kind != "BuildDefinition" {
+        return nil
+    }
+    return []string{owner.Name}
+}); err != nil {
+    return err
+}
+
+		// grab the job object, extract the owner...
+		job := rawObj.(*batchv1.Job)
+		owner := metav1.GetControllerOf(job)
+		if owner == nil {
+			return nil
+		}
+		// ...make sure it's a BuildDefinition...
+		if owner.APIVersion != apiGVStr || owner.Kind != "BuildDefinition" {
+			return nil
+		}
+
+		// ...and if so, return it
+		return []string{owner.Name}
+	}); err != nil {
+		return err
+	}
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&buildtoolkitcloudmasondevv1.BuildDefinition{}).
+		Owns(&batchv1.Job{}). // Add this line to watch owned Jobs
 		Complete(r)
 }

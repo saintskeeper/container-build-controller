@@ -39,6 +39,8 @@ spec:
                 items:
                   type: string
                 type: array
+              buildFile:
+                type: string
               builderImage:
                 description: name of the builder to use
                 type: string

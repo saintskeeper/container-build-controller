@@ -6,6 +6,7 @@ metadata:
 spec:
   gitRepository: https://github.com/saintskeeper/DevSecOps-Toolbox.git
   contextPath: docker
+  buildFile: dockerfile
   registry: docker.io
   registrySecret: docker-registry-credentials
   builderImage: ""
@@ -13,4 +14,4 @@ spec:
     - "--no-push=true"
 
 # TODO ad a build file as dockerfile Dockerfile or something else
-# add support for the Source Controller to get the source code from the git repositoryx
+# add support for the Source Controller to get the source code from the git repository
