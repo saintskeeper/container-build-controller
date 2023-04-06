@@ -186,11 +186,22 @@ func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, nil
 	}
 
-	// Delete any existing Jobs with the same OwnerReference
-	err := r.DeleteAllOf(ctx, &batchv1.Job{}, client.InNamespace(req.Namespace), client.MatchingFields{jobOwnerKey: req.Name})
-	if err != nil {
-		r.Log.Error(err, "failed to delete old Jobs")
+	// List all Jobs in the namespace
+	var jobs batchv1.JobList
+	if err := r.List(ctx, &jobs, client.InNamespace(req.Namespace)); err != nil {
+		r.Log.Error(err, "failed to list Jobs")
 		return ctrl.Result{}, err
+	}
+
+	// Filter Jobs with the same OwnerReference and delete them
+	for _, job := range jobs.Items {
+		owner := metav1.GetControllerOf(&job)
+		if owner != nil && owner.APIVersion == apiGVStr && owner.Kind == "BuildDefinition" && owner.Name == req.Name {
+			if err := r.Delete(ctx, &job); err != nil {
+				r.Log.Error(err, "failed to delete old Job")
+				return ctrl.Result{}, err
+			}
+		}
 	}
 
 	// Create a new Job
@@ -213,29 +224,12 @@ func (r *BuildDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *BuildDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &batchv1.Job{}, jobOwnerKey, func(rawObj client.Object) []string {
-    job := rawObj.(*batchv1.Job)
-    owner := metav1.GetControllerOf(job)
-    if owner == nil || owner.APIVersion != apiGVStr || owner.Kind != "BuildDefinition" {
-        return nil
-    }
-    return []string{owner.Name}
-}); err != nil {
-    return err
-}
-
-		// grab the job object, extract the owner...
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &batchv1.Job{}, ".spec.metadata.name", func(rawObj client.Object) []string {
 		job := rawObj.(*batchv1.Job)
 		owner := metav1.GetControllerOf(job)
-		if owner == nil {
+		if owner == nil || owner.APIVersion != apiGVStr || owner.Kind != "BuildDefinition" {
 			return nil
 		}
-		// ...make sure it's a BuildDefinition...
-		if owner.APIVersion != apiGVStr || owner.Kind != "BuildDefinition" {
-			return nil
-		}
-
-		// ...and if so, return it
 		return []string{owner.Name}
 	}); err != nil {
 		return err
